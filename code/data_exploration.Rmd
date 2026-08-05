@@ -1,0 +1,34 @@
+---
+title: "Data_exploration"
+author: "Jessica McCordic"
+date: "2026-08-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load libraries
+
+library(tidyverse)
+
+
+```
+
+```{r load data}
+
+# Load selection tables
+
+selns_og <- read_delim("data/Raven_selections/6125.220928161024.Table.1.selections_intervals_JM.txt")
+
+
+```
+
+```{r explore data}
+
+head(selns_og)
+
+plot(selns_og$Selection, selns_og$`Dur 90% (s)`)
+hist(selns_og$`Dur 90% (s)`, breaks = 100)
+
+```
