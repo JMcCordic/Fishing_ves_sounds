@@ -15,20 +15,49 @@ library(tidyverse)
 
 ```
 
-```{r load data}
+```{r load data, echo=FALSE, include=FALSE}
 
 # Load selection tables
 
-selns_og <- read_delim("data/Raven_selections/6125.220928161024.Table.1.selections_intervals_JM.txt")
+# Amplitude metrics (BB SPL, OL, TOL) at 1-second resolution with vessel behavior
+metrics_og <- read_csv("data/Sound_metrics/OLE_202209_coords_metrics.csv")
+
+
+# fine scale selections of each change in amplitude within vessel passages
+selns_int_og <- read_delim("data/Raven_selections/6125.220928161024.Table.1.selections_intervals_JM.txt")
 
 
 ```
 
+### Explore data
 ```{r explore data}
 
-head(selns_og)
+head(selns_int_og)
 
-plot(selns_og$Selection, selns_og$`Dur 90% (s)`)
-hist(selns_og$`Dur 90% (s)`, breaks = 100)
+plot(selns_int_og$Selection, selns_int_og$`Dur 90% (s)`)
+hist(selns_int_og$`Dur 90% (s)`, breaks = 100)
 
 ```
+
+### Merge and reshape tables
+#### For sequence analysis, we want a wide df with one row per sequence
+
+```{r reshape}
+
+# first we need all the data together to map the categories onto the sub-selections
+
+selns_data <- selns_int_og |>
+  mutate(datetime = as_datetime(`Begin Date Time`))
+
+intervals_cat <- selns_data |>
+  full_join(metrics_og)
+
+
+
+```
+
+
+
+
+
+
