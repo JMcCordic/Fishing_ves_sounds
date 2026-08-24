@@ -11,6 +11,12 @@ knitr::opts_chunk$set(echo = TRUE)
 # Load libraries
 
 library(tidyverse)
+library(cluster)
+library(dendextend)
+library(fpc)
+library(psych)
+library(TraMineR)
+library(TraMineRextras)
 
 
 ```
@@ -40,23 +46,222 @@ hist(selns_int_og$`Dur 90% (s)`, breaks = 100)
 ```
 
 ### Merge and reshape tables
-#### For sequence analysis, we want a wide df with one row per sequence
+#### For sequence analysis, we want (1) a wide df with one row per sequence ID with events (A/B) going across the columns
+#### and (2) a df with sequence ID and category (fishing/transit)
+
+Sequence ID = each line & behavior combo
+Event = 2 states (A, B -- alternating per selection)
+Class = 2 states (fishing, transit -- determined during field trial)
 
 ```{r reshape}
 
 # first we need all the data together to map the categories onto the sub-selections
 
 selns_data <- selns_int_og |>
-  mutate(datetime = as_datetime(`Begin Date Time`))
+  mutate(datetime = as_datetime(`Begin Date Time`),
+         # assign alternating event codes
+         event_ab = rep_len(c("a","b"), length.out = n()))
 
+# map categories from metrics df onto selections
 intervals_cat <- selns_data |>
-  full_join(metrics_og)
+  # join dfs together
+  full_join(metrics_og) |>
+  # sort by datetime
+  arrange(datetime)|>
+  # fill in data from metrics df into selection rows
+  # fill selection number down to assign metrics rows to selections
+  fill(c(Selection,event_ab, Line_num, activity,lat,lon, GPS_speed_kt, Dist_slant))|>
+  # create sequence identifier of line + activity
+  mutate(seq_ID = 
+           case_when(activity == "Off_eff_transit" ~ activity,
+                     TRUE ~ paste(Line_num, activity, sep = "_"))) |>
+  # filter to just get times included in selection table
+  filter(seq_ID != "NA_NA") 
+### Want to do something like... 
+# when selection changes within seq ID, change event label
+# so would end up with 
+# seq_ID  | Selection   | Event
+# 1           1             A
+# 1           1             A
+# 1           2             B
+# 1           2             B
+# 1           2             B
+# 1           3             A
+# 2           4             A
+# 2           4             A
+# 2           4             A
+# 2           5             B
 
+# etc.
+
+
+# mutate(event_ab = rep(c("a","b"), each = n())
+#   )
+
+
+
+selns_seq <- intervals_cat |>
+  # get rid of rows without selection info
+  filter(!is.na(Selection),
+         seq_ID != "NA_NA") |>
+ # only keep columns needed for sequence analysis
+  select(seq_ID,
+         event_ab) |>
+ # create time index variable 
+  group_by(seq_ID) |>
+  mutate(time_idx = seq(1:n())) 
+
+
+# create key for sequence IDs to fishing vs. transit
+fish_states <- selns_seq |>
+  select(seq_ID) |>
+  mutate(fish_state = case_when(grepl("dredge", seq_ID)==TRUE ~ "fishing",
+                   TRUE ~ "transit"))
+
+```
+
+### Descriptives
+
+How many sequences?
+How many events per sequence?
+How many events of each type across the dataset?
+
+```{r describe dataset}
+
+length(unique(selns_seq$seq_ID))
+#  [1] 20
+length(unique(fish_states$seq_ID))
+#  [1] 20
+```
+
+There are 20 sequences in both datasets. 
+
+```{r events}
+
+event_summ <- selns_seq |>
+  group_by(seq_ID) |>
+  summarize(n_events = n()) |>
+  summarize(mean_n = mean(n_events),
+            med_n = median(n_events),
+            min_n = min(n_events),
+            max_n = max(n_events))
+
+event_summ
+
+behav_table <- table(selns_seq$event_ab)
+
+```
+
+### Creating sequences
+
+```{r reformat}
+
+# reformat from long to wide
+
+selns_seq_wide <- selns_seq |>
+  filter(seq_ID != "Off_eff_transit") |>
+  pivot_wider(names_from = time_idx,
+              values_from = event_ab)
+
+
+```
+
+Create alphabet and assign labels
+
+```{r alphabet}
+
+# this contains categories that appear in the dataset
+event_alphabet <- c("a","b")
+
+# formally assigning labels which might be helpful later
+event_labels <- c("a", "b")
+
+# assign colors (this feels unnecessary but sure)
+
+event_colors <- viridis::rocket(n = 2) 
+
+
+```
+
+Create sequence object 
+
+```{r sequence}
+
+# define sequence using seqdef from TraMineR package
+event_seq <- seqdef(selns_seq_wide, 
+                    var = 2:82,
+                    alphabet = event_alphabet,
+                    labels = event_labels,
+                    xtstep = 5,
+                    cpal = event_colors)
+
+# plot sequences
+
+seqIplot(event_seq)
 
 
 ```
 
 
+Cost matrix
+
+- Use standard cost matrix values:
+insertion/deletion cost = 1.0
+missingness cost = 0.5*[highest cost in matrix]
+substitution cost = constant
+
+
+```{r cost and dist}
+
+costmatrix <- seqsubm(event_seq, 
+                      method="CONSTANT",
+                      cval = 2, 
+                      with.missing=TRUE,
+                      miss.cost=1, 
+                      time.varying=FALSE, 
+                      weighted=TRUE,
+                      transition="both", 
+                      lag=1)
+
+costmatrix
+
+
+# optimal matching dissimilarity matrix
+
+dist_om <- seqdist(event_seq, 
+                   method = "OM", 
+                   indel = 1.0, # insertion/deletion cost = 1
+                   sm = costmatrix, # sub matrix = cost matrix
+                   with.missing = TRUE)
+
+
+# print out top left corner of dissimilarity matrix
+# sanity check that it's symmetrical with diagonal all 0's
+dist_om[1:10, 1:10]
+
+```
+
+
+Clustering
+
+```{r cluster}
+
+event_clusters <- agnes(dist_om, diss = TRUE, method = "ward")
+plot(event_clusters, which.plot = 2)
+
+# oof. let's proceed anyways....
+
+event_clust_cut <- cutree(event_clusters, k = 2) |> 
+  factor(labels = paste("Group", 1:2))
+
+# plot
+
+seqplot(event_seq, 
+        group = event_clust_cut, type = "I")
+
+
+
+```
 
 
 
