@@ -5,14 +5,24 @@ date: "2026-08-05"
 output: html_document
 ---
 
+
+# Sequence analysis 
+
+#### Borrowing heavily from this tutorial: https://quantdev.ssri.psu.edu/sites/qdev/files/sequence_tutorial_2017_1122.html
+
+
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+
 
 # Load libraries
 
 library(tidyverse)
 library(cluster)
 library(dendextend)
+library(factoextra)
 library(fpc)
 library(psych)
 library(TraMineR)
@@ -25,7 +35,7 @@ library(TraMineRextras)
 
 # Load selection tables
 
-# Amplitude metrics (BB SPL, OL, TOL) at 1-second resolution with vessel behavior
+# Amplitude metrics (BB SPL, OL, TOL) at 1-second resolution with vessel behavior and GPS
 metrics_og <- read_csv("data/Sound_metrics/OLE_202209_coords_metrics.csv")
 
 
@@ -46,8 +56,8 @@ hist(selns_int_og$`Dur 90% (s)`, breaks = 100)
 ```
 
 ### Merge and reshape tables
-#### For sequence analysis, we want (1) a wide df with one row per sequence ID with events (A/B) going across the columns
-#### and (2) a df with sequence ID and category (fishing/transit)
+For sequence analysis, we want (1) a wide df with one row per sequence ID with events (A/B) going across the columns
+and (2) a df with sequence ID and category (fishing/transit)
 
 Sequence ID = each line & behavior combo
 Event = 2 states (A, B -- alternating per selection)
@@ -242,7 +252,7 @@ dist_om[1:10, 1:10]
 ```
 
 
-Clustering
+### Clustering
 
 ```{r cluster}
 
@@ -262,6 +272,136 @@ seqplot(event_seq,
 
 
 ```
+
+
+### Group differences between clusters
+
+Visualize dendrogram with cluster ID
+Run logistic regression to test whether vessel behavior  1/0 (fishing/transit) differs by cluster membership
+
+```{r test clusters}
+
+# since we're only testing 2 clusters, use logistic regression
+
+# does vessel behavior differ by cluster membership?
+# cluster ID = predictor
+# vessel behav = response, coded as 1/0 (fishing/transit)
+
+# add cluster labels to seq ID to associate w/fishing vs. transit
+seq_clust_lab <- selns_seq_wide |>
+  select(seq_ID) |>
+  add_column(clust_ID = event_clust_cut)|>
+  mutate(fish_state_binom = case_when(grepl("dredge", seq_ID)==TRUE ~ 1,
+                   TRUE ~ 0),
+         leaf_label = paste(seq_ID, fish_state_binom))
+
+event_clusters$order.lab <- seq_clust_lab$leaf_label[event_clusters$order]
+clust_colors = viridis::mako(n = 2, end = 0.75)
+
+fviz_dend(event_clusters, 
+          k = 2,
+          color_labels_by_k = TRUE,
+          k_colors = clust_colors,
+          labels_font = "bold",
+        
+          rect = TRUE,
+          rect_border = clust_colors,
+          rect_fill = TRUE,
+          
+          lwd=1,
+          horiz = TRUE,
+          ggtheme = theme_bw()) +
+  theme(axis.text = element_text(size = 10),
+        axis.title.x = element_text(size = 12),
+        title = element_blank())
+```
+
+Some observations from initial dendrogram:
+
+  - Outlier is line 4 towing
+  - Lower and Raise mostly clustered with each other with a couple exceptions
+  - line transects all mixed in with fishing, no real patterns
+  - distant cluster not really diagnostic either
+
+
+Might as well test it anyway
+```{r log reg}
+# Logsitic regression
+log_reg <- glm(fish_state_binom ~ clust_ID, data = seq_clust_lab, family = binomial())
+summary(log_reg)
+
+```
+
+No big surprises. 
+
+# Attempt 2:
+### Broader categories, specific events
+
+Want to try more general categories vs. separating out lower/tow/raise
+
+  - seq_ID = Line1_fishing, Line1_transit, Line2_fishing, etc.
+
+Also want to try specifically assigning 'high' and 'low' events
+  - calculate mean SPL for whole sequence
+  - calculate mean-adjusted SPL (SPL - mean)
+  - assign high/low as +/- difference
+
+
+Re-label dataset
+```{r recoding data}
+
+
+# since we actually care about the levels this time, load in CSV with 1-second measurements
+
+all_metrics <- read_csv("data/Sound_metrics/all.csv")
+
+# merge with selections
+
+
+
+hilo_cat <- intervals_cat |>
+  # filter out off effort for now
+  filter(activity != "Off_eff_transit") |>
+  # assign new sequence IDs by fishing activity
+  mutate(seq_ID_fish = case_when(grepl("dredge", seq_ID) ==TRUE ~ paste0(as.character(Line_num),"_","fishing"),
+                                 TRUE ~ paste0(as.character(Line_num),"_","transit"))
+  )|>
+  # summarize by sequence to get median metrics across whole sequence
+  group_by(seq_ID_fish) |>
+  mutate(med_BB = median(BB, na.rm = TRUE),
+         med_tol2k = median(TOL_2000, na.rm = TRUE)) |>
+  # grop by selection to get median metrics per selection
+  group_by(Selection) |>
+  mutate(med_sel_BB = median(BB, na.rm = TRUE),
+         med_sel_tol2k = median(TOL_2000, na.rm = TRUE),
+         diff_BB = med_sel_BB - med_BB,
+         diff_tol2k = med_sel_tol2k - med_tol2k, 
+         event_hilo = case_when(
+           diff_tol2k > 0 ~ "high",
+           diff_tol2k < 0 ~ "low")
+         )
+
+
+
+hilo_seq <- hilo_cat |>
+  # get rid of rows without metrics info
+  filter(!is.na(event_hilo)) |>
+ # only keep columns needed for sequence analysis
+  select(seq_ID,
+         event_ab) |>
+ # create time index variable 
+  group_by(seq_ID) |>
+  mutate(time_idx = seq(1:n())) 
+
+
+
+```
+
+
+
+
+
+
 
 
 
