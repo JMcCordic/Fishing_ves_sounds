@@ -139,9 +139,10 @@ hilo_cat <- intervals_cat |>
                               round(sel_dist,0) > 500 & round(sel_dist,0) <=1000 ~ "500-1000m",
                               round(sel_dist,0) > 1000 ~ ">1000m"),
          med_sel_BB = median(BB, na.rm = TRUE),
-         med_sel_tol2k = median(TOL_2000, na.rm = TRUE), 
+         med_sel_tol2k = median(TOL_2000, na.rm = TRUE),
          diff_BB = med_sel_BB - med_BB,
-         diff_tol2k = med_sel_tol2k - med_tol2k,
+         diff_tol2k = med_sel_tol2k - med_tol2k) |>
+  mutate(
          event_hilo = case_when(
            diff_tol2k > 0 ~ "high",
            diff_tol2k < 0 ~ "low"
@@ -173,12 +174,14 @@ hilo_cat <- intervals_cat |>
   
   
 selns_seq <- hilo_cat |>
-  # get rid of rows without selection info
-  filter(!is.na(Selection),
-         seq_ID != "NA_NA") |>
+  group_by(seq_ID, Selection) |>
+  summarize(event= unique(event_hilo))
+  # # get rid of rows without selection info
+  # filter(!is.na(Selection),
+  #        seq_ID != "NA_NA") |>
  # only keep columns needed for sequence analysis
   select(seq_ID,
-         event_ab) |>
+         event_hilo) |>
  # create time index variable 
   group_by(seq_ID) |>
   mutate(time_idx = seq(1:n())) 
@@ -187,7 +190,7 @@ selns_seq <- hilo_cat |>
 # create key for sequence IDs to fishing vs. transit
 fish_states <- selns_seq |>
   select(seq_ID) |>
-  mutate(fish_state = case_when(grepl("dredge", seq_ID)==TRUE ~ "fishing",
+  mutate(fish_state = case_when(grepl("fishing", seq_ID)==TRUE ~ "fishing",
                    TRUE ~ "transit"))
 
 ```
@@ -201,12 +204,12 @@ How many events of each type across the dataset?
 ```{r describe dataset}
 
 length(unique(selns_seq$seq_ID))
-#  [1] 11
+#  [1] 10
 length(unique(fish_states$seq_ID))
-#  [1] 11
+#  [1] 10
 ```
 
-There are 11 sequences in both datasets. 
+There are 10 sequences in both datasets. 
 
 ```{r events}
 
@@ -220,7 +223,7 @@ event_summ <- selns_seq |>
 
 event_summ
 
-behav_table <- table(selns_seq$event_ab)
+behav_table <- table(selns_seq$event_hilo)
 
 ```
 
@@ -233,7 +236,7 @@ behav_table <- table(selns_seq$event_ab)
 selns_seq_wide <- selns_seq |>
   filter(seq_ID != "Off_eff_transit") |>
   pivot_wider(names_from = time_idx,
-              values_from = event_ab)
+              values_from = event_hilo)
 
 
 ```
@@ -243,15 +246,14 @@ Create alphabet and assign labels
 ```{r alphabet}
 
 # this contains categories that appear in the dataset
-event_alphabet <- c("a","b")
+event_alphabet <- c("high","low")
 
 # formally assigning labels which might be helpful later
-event_labels <- c("a", "b")
+event_labels <- c("high", "low")
 
 # assign colors (this feels unnecessary but sure)
 
-event_colors <- viridis::rocket(n = 2) 
-
+event_colors <- viridis::plasma(n = 2) 
 
 ```
 
@@ -261,7 +263,7 @@ Create sequence object
 
 # define sequence using seqdef from TraMineR package
 event_seq <- seqdef(selns_seq_wide, 
-                    var = 2:82,
+                    var = 2:1554,
                     alphabet = event_alphabet,
                     labels = event_labels,
                     xtstep = 5,
@@ -288,7 +290,7 @@ substitution cost = constant
 costmatrix <- seqsubm(event_seq, 
                       method="CONSTANT",
                       cval = 2, 
-                      with.missing=TRUE,
+                      with.missing=FALSE,
                       miss.cost=1, 
                       time.varying=FALSE, 
                       weighted=TRUE,
@@ -309,7 +311,7 @@ dist_om <- seqdist(event_seq,
 
 # print out top left corner of dissimilarity matrix
 # sanity check that it's symmetrical with diagonal all 0's
-dist_om[1:10, 1:10]
+dist_om[1:5, 1:5]
 
 ```
 
@@ -353,7 +355,7 @@ Run logistic regression to test whether vessel behavior  1/0 (fishing/transit) d
 seq_clust_lab <- selns_seq_wide |>
   select(seq_ID) |>
   add_column(clust_ID = event_clust_cut)|>
-  mutate(fish_state_binom = case_when(grepl("dredge", seq_ID)==TRUE ~ 1,
+  mutate(fish_state_binom = case_when(grepl("fishing", seq_ID)==TRUE ~ 1,
                    TRUE ~ 0),
          leaf_label = paste(seq_ID, fish_state_binom))
 
@@ -380,10 +382,7 @@ fviz_dend(event_clusters,
 
 Some observations from initial dendrogram:
 
-  - Outlier is line 4 towing
-  - Lower and Raise mostly clustered with each other with a couple exceptions
-  - line transects all mixed in with fishing, no real patterns
-  - distant cluster not really diagnostic either
+  - Maybe this isn't going to work...
 
 
 Might as well test it anyway
@@ -395,76 +394,3 @@ summary(log_reg)
 ```
 
 No big surprises. 
-
-# Attempt 2:
-### Broader categories, specific events
-
-Want to try more general categories vs. separating out lower/tow/raise
-
-  - seq_ID = Line1_fishing, Line1_transit, Line2_fishing, etc.
-
-Also want to try specifically assigning 'high' and 'low' events
-  - calculate mean SPL for whole sequence
-  - calculate mean-adjusted SPL (SPL - mean)
-  - assign high/low as +/- difference
-
-
-Re-label dataset
-```{r recoding data}
-
-
-# since we actually care about the levels this time, load in CSV with 1-second measurements
-
-all_metrics <- read_csv("data/Sound_metrics/all.csv")
-
-# merge with selections
-
-
-
-hilo_cat <- intervals_cat |>
-  # filter out off effort for now
-  filter(activity != "Off_eff_transit") |>
-  # assign new sequence IDs by fishing activity
-  mutate(seq_ID_fish = case_when(grepl("dredge", seq_ID) ==TRUE ~ paste0(as.character(Line_num),"_","fishing"),
-                                 TRUE ~ paste0(as.character(Line_num),"_","transit"))
-  )|>
-  # summarize by sequence to get median metrics across whole sequence
-  group_by(seq_ID_fish) |>
-  mutate(med_BB = median(BB, na.rm = TRUE),
-         med_tol2k = median(TOL_2000, na.rm = TRUE)) |>
-  # grop by selection to get median metrics per selection
-  group_by(Selection) |>
-  mutate(med_sel_BB = median(BB, na.rm = TRUE),
-         med_sel_tol2k = median(TOL_2000, na.rm = TRUE),
-         diff_BB = med_sel_BB - med_BB,
-         diff_tol2k = med_sel_tol2k - med_tol2k, 
-         event_hilo = case_when(
-           diff_tol2k > 0 ~ "high",
-           diff_tol2k < 0 ~ "low")
-         )
-
-
-
-hilo_seq <- hilo_cat |>
-  # get rid of rows without metrics info
-  filter(!is.na(event_hilo)) |>
- # only keep columns needed for sequence analysis
-  select(seq_ID,
-         event_ab) |>
- # create time index variable 
-  group_by(seq_ID) |>
-  mutate(time_idx = seq(1:n())) 
-
-
-
-```
-
-
-
-
-
-
-
-
-
-
