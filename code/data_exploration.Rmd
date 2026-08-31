@@ -80,31 +80,37 @@ metrics_join <- all_metrics_og |>
 intervals_cat <- selns_data |>
   # join dfs together
   full_join(metrics_join) |>
+  # get rid of some unused columns
+  select(-c(View, Channel,`Low Freq (Hz)`, `High Freq (Hz)` ,`Begin Time (s)`, `End Time (s)`, `Begin Date Time`, OL_Hz:OL_16000, TOL_Hz, TOL_12500:TOL_20000))|>
   # sort by datetime
   arrange(datetime)|>
   
   # fill in data from metrics df into selection rows
   # fill selection number down to assign metrics rows to selections
-  fill(c(Selection,event_ab, Line_num, activity,lat,lon, GPS_speed_kt, Dist_slant))|>
-  # create distance categories
-  mutate(dist_cat = case_when(round(Dist_slant,0) <= 250 ~ "0-250m",
-                              round(Dist_slant,0) > 250 & round(Dist_slant,0) <=500 ~ "250-500m",
-                              round(Dist_slant,0) > 500 & round(Dist_slant,0) <=1000 ~ "500-1000m",
-                              round(Dist_slant,0) > 1000 ~ ">1000m"),
+  fill(c(Selection,event_ab, `Dur 90% (s)`,Line_num, activity,lat,lon, GPS_speed_kt, Dist_slant))|>
+  # # create distance categories
+  # mutate(dist_cat = case_when(round(Dist_slant,0) <= 250 ~ "0-250m",
+  #                             round(Dist_slant,0) > 250 & round(Dist_slant,0) <=500 ~ "250-500m",
+  #                             round(Dist_slant,0) > 500 & round(Dist_slant,0) <=1000 ~ "500-1000m",
+  #                             round(Dist_slant,0) > 1000 ~ ">1000m"),
   # create sequence identifier of line + activity
-  seq_ID = case_when(activity == "Off_eff_transit" ~ activity,
-                     grepl("dredge", activity)==TRUE ~ paste(Line_num, "fishing", sep = "_"),
-                     TRUE ~ paste(Line_num, "transit", sep = "_"))) |>
+  mutate(seq_ID = case_when(activity == "Off_eff_transit" ~ activity,
+                            grepl("dredge", activity)==TRUE ~ paste(Line_num, "fishing", sep = "_"),
+                            TRUE ~ paste(Line_num, "transit", sep = "_"))) |>
   # filter to just get times included in selection table
-  filter(seq_ID != "NA_transit")
+  filter(seq_ID != "NA_transit")|>
+  group_by(Selection) |>
+  mutate(sel_dist = median(round(Dist_slant,0)), 
+         sel_dist_cat = case_when(round(sel_dist,0) <= 250 ~ "0-250m",
+                                  round(sel_dist,0) > 250 & round(sel_dist,0) <=500 ~ "250-500m",
+                                  round(sel_dist,0) > 500 & round(sel_dist,0) <=1000 ~ "500-1000m",
+                                  round(sel_dist,0) > 1000 ~ ">1000m"))
 
 
 
 
-# try to assign sequence events based on relative SPL (high vs low)
-#' OK, so what I want to do is have some measure of relative quiet/loud selections
-#' But SPL also scales with distance so I wanted to do the selections relative to the median values per distance
-#' But some selections span multiple distance categories (APPARENTLY)
+# try to assign sequence events based on relative SPL (high vs low) and Duration
+#' 
 #' SO... for each selection, find the median slant range
 #' 1 find median metrics per distance bin
 #' 2 find median metrics per selection
@@ -115,75 +121,51 @@ intervals_cat <- selns_data |>
 
 
 
-
+# start with intervals_cat
 hilo_cat <- intervals_cat |>
-  # get rid of some columns
-  select(-c(View, Channel,`Low Freq (Hz)`, `High Freq (Hz)` ,`Begin Time (s)`, `End Time (s)`, `Begin Date Time`, OL_Hz:OL_16000, TOL_Hz, TOL_12500:TOL_20000))|>
-  # filter out off effort for now
-  # filter(activity != "Off_eff_transit") |>
-  # assign new sequence IDs by fishing activity
-  # mutate(seq_ID_fish = case_when(grepl("dredge", seq_ID) ==TRUE ~ paste0(as.character(Line_num),"_","fishing"),
-  #                                TRUE ~ paste0(as.character(Line_num),"_","transit"))
-  # )|>
-  
-  # summarize by distance category to get median value for each distance
-  group_by(dist_cat) |>
-  mutate(med_BB = median(BB, na.rm = TRUE),
-         med_tol2k = median(TOL_2000, na.rm = TRUE)) |>
-  # group by selection to get median metrics per selection
-  ungroup() |>
-  group_by(Selection) |>
-  mutate(sel_dist = median(round(Dist_slant,0)), 
-         sel_dist_cat = case_when(round(sel_dist,0) <= 250 ~ "0-250m",
-                              round(sel_dist,0) > 250 & round(sel_dist,0) <=500 ~ "250-500m",
-                              round(sel_dist,0) > 500 & round(sel_dist,0) <=1000 ~ "500-1000m",
-                              round(sel_dist,0) > 1000 ~ ">1000m"),
-         med_sel_BB = median(BB, na.rm = TRUE),
-         med_sel_tol2k = median(TOL_2000, na.rm = TRUE),
-         diff_BB = med_sel_BB - med_BB,
-         diff_tol2k = med_sel_tol2k - med_tol2k) |>
-  mutate(
-         event_hilo = case_when(
-           diff_tol2k > 0 ~ "high",
-           diff_tol2k < 0 ~ "low"
-         ))
-         
-  # 
-  # 
-  # group_by(seq_ID, Selection) |>
-  # summarize(med_sel_BB = median(BB, na.rm = TRUE),
-  #        med_sel_tol2k = median(TOL_2000, na.rm = TRUE),
-  #        )|>
-  # mutate(lag_sel_tol2k = lag(med_sel_tol2k, default = 0),
-  #        diff_sel_tol2k = med_sel_tol2k - lag_sel_tol2k)
-  #        
-  #        
-         
-         # ,
-         # diff_tol2k = med_sel_tol2k - med_tol2k, 
-         # event_hilo = case_when(
-         #   diff_tol2k > 0 ~ "high",
-         #   diff_tol2k < 0 ~ "low"),
-         # seln_lab = Selection
-         # ) 
-
-  
-  
-  
-  
-  
-  
-selns_seq <- hilo_cat |>
+  # group by seq_ID & selection to get median metrics per selection
   group_by(seq_ID, Selection) |>
-  summarize(event= unique(event_hilo))
-  # # get rid of rows without selection info
-  # filter(!is.na(Selection),
-  #        seq_ID != "NA_NA") |>
- # only keep columns needed for sequence analysis
+  summarize(med_sel_BB = median(BB, na.rm = TRUE),
+            med_sel_tol2k = median(TOL_2000, na.rm = TRUE),
+            Dur_90_perc = mean(`Dur 90% (s)`)) |>
+  # assign categories based on TOL_2000 and duration
+  mutate(
+    n_selns = n(), 
+    # get lag and lead values for differences
+    lag_tol2k = lag(med_sel_tol2k),
+    lead_tol2k = lead(med_sel_tol2k),
+    diff_tol2k = case_when(
+      # if lagged value is NA (AKA first value in group), use lead value to fill it in
+      is.na(lag_tol2k) ~ med_sel_tol2k - lead_tol2k,
+      
+      TRUE ~ med_sel_tol2k - lag_tol2k),
+    # assign high/low categories based on TOL values per selection within each sequence
+    tol2k_hilo = case_when(
+      # For single instance of one selection for whole sequence (Sel 25, Line 4, transit),
+      # compare to previous selection (Sel 24) which is lower, so assign as "high"
+      n_selns == 1 ~ "high",
+      diff_tol2k > 0 ~ "high",
+      diff_tol2k < 0 ~ "low"
+    ),
+    # assign long/short categories based on 90% duration per selection within each sequence
+    dur_long_short = case_when(
+      Dur_90_perc <= 20 ~ "S",
+      Dur_90_perc > 20 ~ "L"
+    ),
+    # paste SPL and duration combos together (4 possible values)
+    event_hilo = paste0(tol2k_hilo, "_", dur_long_short))
+
+ 
+# set up df for sequence analysis  
+selns_seq <- hilo_cat |>
+  # filter out off effort for now
+  filter(seq_ID != "Off_eff_transit") |>
+  ungroup()|>
+  group_by(seq_ID) |>
+  # only keep columns needed for sequence analysis
   select(seq_ID,
          event_hilo) |>
- # create time index variable 
-  group_by(seq_ID) |>
+ # create time index variable per sequence
   mutate(time_idx = seq(1:n())) 
 
 
@@ -204,12 +186,12 @@ How many events of each type across the dataset?
 ```{r describe dataset}
 
 length(unique(selns_seq$seq_ID))
-#  [1] 10
+
 length(unique(fish_states$seq_ID))
-#  [1] 10
+
 ```
 
-There are 10 sequences in both datasets. 
+ 
 
 ```{r events}
 
@@ -224,6 +206,7 @@ event_summ <- selns_seq |>
 event_summ
 
 behav_table <- table(selns_seq$event_hilo)
+behav_table
 
 ```
 
@@ -246,14 +229,14 @@ Create alphabet and assign labels
 ```{r alphabet}
 
 # this contains categories that appear in the dataset
-event_alphabet <- c("high","low")
+event_alphabet <- c("low_L",  "high_L", "low_S",  "high_S")
 
 # formally assigning labels which might be helpful later
-event_labels <- c("high", "low")
+event_labels <- c("low_L",  "high_L", "low_S",  "high_S")
 
 # assign colors (this feels unnecessary but sure)
 
-event_colors <- viridis::plasma(n = 2) 
+event_colors <- viridis::plasma(n = 4) 
 
 ```
 
@@ -263,10 +246,10 @@ Create sequence object
 
 # define sequence using seqdef from TraMineR package
 event_seq <- seqdef(selns_seq_wide, 
-                    var = 2:1554,
+                    var = 2:15,
                     alphabet = event_alphabet,
                     labels = event_labels,
-                    xtstep = 5,
+                    xtstep = 2,
                     cpal = event_colors)
 
 # plot sequences
@@ -382,15 +365,16 @@ fviz_dend(event_clusters,
 
 Some observations from initial dendrogram:
 
-  - Maybe this isn't going to work...
+  - fishing from line 2a clustered with transit from other lines, although it's the outlier in that group
 
 
 Might as well test it anyway
-```{r log reg}
-# Logsitic regression
-log_reg <- glm(fish_state_binom ~ clust_ID, data = seq_clust_lab, family = binomial())
-summary(log_reg)
+```{r fisher}
+# Fisher's Exact test to see if cluster assignment is related to fishing activity
+
+fisher_tab <- table(seq_clust_lab |> ungroup() |> select(clust_ID, fish_state_binom))
+fisher.test(fisher_tab)
 
 ```
 
-No big surprises. 
+That's promising!
