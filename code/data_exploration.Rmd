@@ -328,7 +328,18 @@ Run logistic regression to test whether vessel behavior  1/0 (fishing/transit) d
 
 ```{r test clusters}
 
-# since we're only testing 2 clusters, use logistic regression
+# Test cluster stability with bootstrapping
+
+cluster_boot <- clusterboot(dist_om, 
+            clustermethod = hclustCBI, 
+            method = "ward.D2",
+            k = 2,
+            seed = 13958)
+
+# get Jaccard coefficient for each cluster
+# hoping for > 0.85 = 'highly stable' or at least > 0.6 = 'likely to reflect a pattern'
+cluster_boot$bootmean
+# woohoo!
 
 # does vessel behavior differ by cluster membership?
 # cluster ID = predictor
