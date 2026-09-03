@@ -94,7 +94,7 @@ intervals_cat <- selns_data |>
   #                             round(Dist_slant,0) > 500 & round(Dist_slant,0) <=1000 ~ "500-1000m",
   #                             round(Dist_slant,0) > 1000 ~ ">1000m"),
   # create sequence identifier of line + activity
-  mutate(seq_ID = case_when(activity == "Off_eff_transit" ~ activity,
+  mutate(seq_ID = case_when(activity == "Off_eff_transit" ~ paste(Line_num, activity, sep = "_"),
                             grepl("dredge", activity)==TRUE ~ paste(Line_num, "fishing", sep = "_"),
                             TRUE ~ paste(Line_num, "transit", sep = "_"))) |>
   # filter to just get times included in selection table
@@ -217,7 +217,8 @@ behav_table
 # reformat from long to wide
 
 selns_seq_wide <- selns_seq |>
-  filter(seq_ID != "Off_eff_transit") |>
+  filter(seq_ID != "pre_survey_Off_eff_transit",
+         seq_ID != "post_survey_Off_eff_transit") |>
   pivot_wider(names_from = time_idx,
               values_from = event_hilo)
 
@@ -339,7 +340,7 @@ cluster_boot <- clusterboot(dist_om,
 # get Jaccard coefficient for each cluster
 # hoping for > 0.85 = 'highly stable' or at least > 0.6 = 'likely to reflect a pattern'
 cluster_boot$bootmean
-# woohoo!
+# cluster 1 & 2 stable, cluster 3 not so much
 
 # does vessel behavior differ by cluster membership?
 # cluster ID = predictor
@@ -372,11 +373,13 @@ fviz_dend(event_clusters,
   theme(axis.text = element_text(size = 10),
         axis.title.x = element_text(size = 12),
         title = element_blank())
+ggsave("figs/dendrogram_k2.png", height=8, width=10, units = "in", dpi = 300)
+
 ```
 
 Some observations from initial dendrogram:
 
-  - fishing from line 2a clustered with transit from other lines, although it's the outlier in that group
+  - fishing from lines 1 and 2a clustered with transit from other lines but other fishing lines were separated
 
 
 Might as well test it anyway
