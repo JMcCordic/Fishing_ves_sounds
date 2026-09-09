@@ -1,7 +1,7 @@
 ---
-title: "Data_exploration"
+title: "Sequence Analysis"
 author: "Jessica McCordic"
-date: "2026-08-05"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: html_document
 ---
 
@@ -88,11 +88,6 @@ intervals_cat <- selns_data |>
   # fill in data from metrics df into selection rows
   # fill selection number down to assign metrics rows to selections
   fill(c(Selection,event_ab, `Dur 90% (s)`,Line_num, activity,lat,lon, GPS_speed_kt, Dist_slant))|>
-  # # create distance categories
-  # mutate(dist_cat = case_when(round(Dist_slant,0) <= 250 ~ "0-250m",
-  #                             round(Dist_slant,0) > 250 & round(Dist_slant,0) <=500 ~ "250-500m",
-  #                             round(Dist_slant,0) > 500 & round(Dist_slant,0) <=1000 ~ "500-1000m",
-  #                             round(Dist_slant,0) > 1000 ~ ">1000m"),
   # create sequence identifier of line + activity
   mutate(seq_ID = case_when(activity == "Off_eff_transit" ~ paste(Line_num, activity, sep = "_"),
                             grepl("dredge", activity)==TRUE ~ paste(Line_num, "fishing", sep = "_"),
@@ -109,28 +104,85 @@ intervals_cat <- selns_data |>
 
 
 
-# try to assign sequence events based on relative SPL (high vs low) and Duration
-#' 
-#' SO... for each selection, find the median slant range
-#' 1 find median metrics per distance bin
-#' 2 find median metrics per selection
-#' 3 selection - median per distance
-#' 4 assign 'above' vs 'below' median as events
-#' 
+# Assign sequence events based on relative SPL (high vs low) and Duration
 
-
-
+# get 50th percentile to use as "short" vs "long" cutoff
+dur_cut_val <- quantile(unique(intervals_cat$`Dur 90% (s)`))[3]
 
 # start with intervals_cat
 hilo_cat <- intervals_cat |>
   # group by seq_ID & selection to get median metrics per selection
   group_by(seq_ID, Selection) |>
   summarize(med_sel_BB = median(BB, na.rm = TRUE),
+            med_sel_tol63 = median(TOL_63, na.rm = TRUE),
+            med_sel_tol125 = median(TOL_125, na.rm = TRUE),
             med_sel_tol2k = median(TOL_2000, na.rm = TRUE),
             Dur_90_perc = mean(`Dur 90% (s)`)) |>
-  # assign categories based on TOL_2000 and duration
+  
+  # assign categories based on SPL metrics and duration
   mutate(
     n_selns = n(), 
+    
+    ####
+    # Broadband SPL
+    # get lag and lead values for differences
+    lag_BB = lag(med_sel_BB),
+    lead_BB = lead(med_sel_BB),
+    diff_BB = case_when(
+      # if lagged value is NA (AKA first value in group), use lead value to fill it in
+      is.na(lag_BB) ~ med_sel_BB - lead_BB,
+      
+      TRUE ~ med_sel_BB - lag_BB),
+    # assign high/low categories based on TOL values per selection within each sequence
+    BB_hilo = case_when(
+      # For single instance of one selection for whole sequence (Sel 25, Line 4, transit),
+      #   compare to previous selection (Sel 24) which is lower, so assign manually as "high"
+      n_selns == 1 ~ "high",
+      diff_BB > 0 ~ "high",
+      diff_BB < 0 ~ "low"
+    ),
+    
+    
+    ####
+    # TOL63
+    # get lag and lead values for differences
+    lag_tol63 = lag(med_sel_tol63),
+    lead_tol63 = lead(med_sel_tol63),
+    diff_tol63 = case_when(
+      # if lagged value is NA (AKA first value in group), use lead value to fill it in
+      is.na(lag_tol63) ~ med_sel_tol63 - lead_tol63,
+      
+      TRUE ~ med_sel_tol63 - lag_tol63),
+    # assign high/low categories based on TOL values per selection within each sequence
+    tol63_hilo = case_when(
+      # For single instance of one selection for whole sequence (Sel 25, Line 4, transit),
+      #   compare to previous selection (Sel 24) which is lower, so assign manually as "high"
+      n_selns == 1 ~ "high",
+      diff_tol63 > 0 ~ "high",
+      diff_tol63 < 0 ~ "low"
+    ),
+    
+    ####
+    # TOL125
+    # get lag and lead values for differences
+    lag_tol125 = lag(med_sel_tol125),
+    lead_tol125 = lead(med_sel_tol125),
+    diff_tol125 = case_when(
+      # if lagged value is NA (AKA first value in group), use lead value to fill it in
+      is.na(lag_tol125) ~ med_sel_tol125 - lead_tol125,
+      
+      TRUE ~ med_sel_tol125 - lag_tol125),
+    # assign high/low categories based on TOL values per selection within each sequence
+    tol125_hilo = case_when(
+      # For single instance of one selection for whole sequence (Sel 25, Line 4, transit),
+      #   compare to previous selection (Sel 24) which is lower, so assign manually as "high"
+      n_selns == 1 ~ "high",
+      diff_tol125 > 0 ~ "high",
+      diff_tol125 < 0 ~ "low"
+    ),
+    
+    
+    # TOL2000
     # get lag and lead values for differences
     lag_tol2k = lag(med_sel_tol2k),
     lead_tol2k = lead(med_sel_tol2k),
@@ -142,31 +194,79 @@ hilo_cat <- intervals_cat |>
     # assign high/low categories based on TOL values per selection within each sequence
     tol2k_hilo = case_when(
       # For single instance of one selection for whole sequence (Sel 25, Line 4, transit),
-      # compare to previous selection (Sel 24) which is lower, so assign as "high"
+      #   compare to previous selection (Sel 24) which is lower, so assign manually as "high"
       n_selns == 1 ~ "high",
       diff_tol2k > 0 ~ "high",
       diff_tol2k < 0 ~ "low"
     ),
+    
     # assign long/short categories based on 90% duration per selection within each sequence
     dur_long_short = case_when(
-      Dur_90_perc <= 20 ~ "S",
-      Dur_90_perc > 20 ~ "L"
+      Dur_90_perc <= dur_cut_val ~ "short",
+      Dur_90_perc > dur_cut_val ~ "long"
     ),
+    
     # paste SPL and duration combos together (4 possible values)
-    event_hilo = paste0(tol2k_hilo, "_", dur_long_short))
+    event_hilo_tol63 = paste0(tol63_hilo, "_", dur_long_short),
+    event_hilo_tol125 = paste0(tol125_hilo, "_", dur_long_short),
+    event_hilo_tol2k = paste0(tol2k_hilo, "_", dur_long_short),
+    event_hilo_BB = paste0(BB_hilo, "_", dur_long_short))
 
- 
+#### BB SPL
 # set up df for sequence analysis  
-selns_seq <- hilo_cat |>
+selns_seq_BB <- hilo_cat |>
   # filter out off effort for now
   filter(seq_ID != "Off_eff_transit") |>
   ungroup()|>
   group_by(seq_ID) |>
   # only keep columns needed for sequence analysis
   select(seq_ID,
-         event_hilo) |>
+         event_hilo_BB) |>
  # create time index variable per sequence
   mutate(time_idx = seq(1:n())) 
+
+#### TOL63
+# set up df for sequence analysis  
+selns_seq_tol63 <- hilo_cat |>
+  # filter out off effort for now
+  filter(seq_ID != "Off_eff_transit") |>
+  ungroup()|>
+  group_by(seq_ID) |>
+  # only keep columns needed for sequence analysis
+  select(seq_ID,
+         event_hilo_tol63) |>
+ # create time index variable per sequence
+  mutate(time_idx = seq(1:n())) 
+
+
+#### TOL125
+# set up df for sequence analysis  
+selns_seq_tol125 <- hilo_cat |>
+  # filter out off effort for now
+  filter(seq_ID != "Off_eff_transit") |>
+  ungroup()|>
+  group_by(seq_ID) |>
+  # only keep columns needed for sequence analysis
+  select(seq_ID,
+         event_hilo_tol125) |>
+ # create time index variable per sequence
+  mutate(time_idx = seq(1:n())) 
+
+
+#### TOL2000
+# set up df for sequence analysis  
+selns_seq_tol2k <- hilo_cat |>
+  # filter out off effort for now
+  filter(seq_ID != "Off_eff_transit") |>
+  ungroup()|>
+  group_by(seq_ID) |>
+  # only keep columns needed for sequence analysis
+  select(seq_ID,
+         event_hilo_tol2k) |>
+ # create time index variable per sequence
+  mutate(time_idx = seq(1:n())) 
+
+
 
 
 # create key for sequence IDs to fishing vs. transit
@@ -195,18 +295,42 @@ length(unique(fish_states$seq_ID))
 
 ```{r events}
 
-event_summ <- selns_seq |>
+# descriptives for N events per sequence (same for all metrics)
+event_summ <- selns_seq_BB |>
   group_by(seq_ID) |>
   summarize(n_events = n()) |>
   summarize(mean_n = mean(n_events),
             med_n = median(n_events),
             min_n = min(n_events),
             max_n = max(n_events))
-
 event_summ
 
-behav_table <- table(selns_seq$event_hilo)
-behav_table
+#### BB SPL
+behav_table_BB <- table(selns_seq_BB$event_hilo_BB)
+
+behav_table_BB
+
+
+#### TOL63
+
+behav_table_tol63 <- table(selns_seq_tol63$event_hilo_tol63)
+
+behav_table_tol63
+
+#### TOL125
+
+behav_table_tol125 <- table(selns_seq_tol125$event_hilo_tol125)
+
+behav_table_tol125
+
+#### TOL2000
+
+behav_table_tol2k <- table(selns_seq_tol2k$event_hilo_tol2k)
+
+behav_table_tol2k
+
+
+
 
 ```
 
@@ -216,11 +340,37 @@ behav_table
 
 # reformat from long to wide
 
-selns_seq_wide <- selns_seq |>
+#### BB SPL
+selns_seq_wide_BB <- selns_seq_BB |>
   filter(seq_ID != "pre_survey_Off_eff_transit",
          seq_ID != "post_survey_Off_eff_transit") |>
   pivot_wider(names_from = time_idx,
-              values_from = event_hilo)
+              values_from = event_hilo_BB)
+
+
+#### TOL63
+selns_seq_wide_tol63 <- selns_seq_tol63 |>
+  filter(seq_ID != "pre_survey_Off_eff_transit",
+         seq_ID != "post_survey_Off_eff_transit") |>
+  pivot_wider(names_from = time_idx,
+              values_from = event_hilo_tol63)
+
+#### TOL125
+selns_seq_wide_tol125 <- selns_seq_tol125 |>
+  filter(seq_ID != "pre_survey_Off_eff_transit",
+         seq_ID != "post_survey_Off_eff_transit") |>
+  pivot_wider(names_from = time_idx,
+              values_from = event_hilo_tol125)
+
+#### TOL2000
+selns_seq_wide_tol2k <- selns_seq_tol2k |>
+  filter(seq_ID != "pre_survey_Off_eff_transit",
+         seq_ID != "post_survey_Off_eff_transit") |>
+  pivot_wider(names_from = time_idx,
+              values_from = event_hilo_tol2k)
+
+
+
 
 
 ```
@@ -229,15 +379,16 @@ Create alphabet and assign labels
 
 ```{r alphabet}
 
+# same for all metrics
+
 # this contains categories that appear in the dataset
-event_alphabet <- c("low_L",  "high_L", "low_S",  "high_S")
+event_alphabet <- c("low_long",  "high_long", "low_short",  "high_short")
 
 # formally assigning labels which might be helpful later
-event_labels <- c("low_L",  "high_L", "low_S",  "high_S")
+event_labels <- c("low_long",  "high_long", "low_short",  "high_short")
 
 # assign colors (this feels unnecessary but sure)
-
-event_colors <- viridis::plasma(n = 4) 
+event_colors <- viridis::plasma(n = 4, begin = 0.25, end = 0.75) 
 
 ```
 
@@ -246,17 +397,45 @@ Create sequence object
 ```{r sequence}
 
 # define sequence using seqdef from TraMineR package
-event_seq <- seqdef(selns_seq_wide, 
+event_seq_BB <- seqdef(selns_seq_wide_BB, 
                     var = 2:15,
                     alphabet = event_alphabet,
                     labels = event_labels,
                     xtstep = 2,
                     cpal = event_colors)
 
+
+event_seq_tol63 <- seqdef(selns_seq_wide_tol63, 
+                    var = 2:15,
+                    alphabet = event_alphabet,
+                    labels = event_labels,
+                    xtstep = 2,
+                    cpal = event_colors)
+
+
+event_seq_tol125 <- seqdef(selns_seq_wide_tol125, 
+                    var = 2:15,
+                    alphabet = event_alphabet,
+                    labels = event_labels,
+                    xtstep = 2,
+                    cpal = event_colors)
+
+event_seq_tol2k <- seqdef(selns_seq_wide_tol2k, 
+                    var = 2:15,
+                    alphabet = event_alphabet,
+                    labels = event_labels,
+                    xtstep = 2,
+                    cpal = event_colors)
+
+
+
+
 # plot sequences
 
-seqIplot(event_seq)
-
+seqIplot(event_seq_BB, main = "BB SPL")
+seqIplot(event_seq_tol63, main = "TOL63")
+seqIplot(event_seq_tol125, main = "TOL125")
+seqIplot(event_seq_tol2k, main = "TOL2k")
 
 ```
 
@@ -271,6 +450,7 @@ substitution cost = constant
 
 ```{r cost and dist}
 
+# same for all metrics
 costmatrix <- seqsubm(event_seq, 
                       method="CONSTANT",
                       cval = 2, 
@@ -286,16 +466,33 @@ costmatrix
 
 # optimal matching dissimilarity matrix
 
-dist_om <- seqdist(event_seq, 
+dist_om_BB <- seqdist(event_seq_BB, 
                    method = "OM", 
                    indel = 1.0, # insertion/deletion cost = 1
                    sm = costmatrix, # sub matrix = cost matrix
-                   with.missing = TRUE)
+                   with.missing = FALSE)
 
+dist_om_tol63 <- seqdist(event_seq_tol63, 
+                   method = "OM", 
+                   indel = 1.0, # insertion/deletion cost = 1
+                   sm = costmatrix, # sub matrix = cost matrix
+                   with.missing = FALSE)
 
-# print out top left corner of dissimilarity matrix
-# sanity check that it's symmetrical with diagonal all 0's
-dist_om[1:5, 1:5]
+dist_om_tol125 <- seqdist(event_seq_tol125, 
+                   method = "OM", 
+                   indel = 1.0, # insertion/deletion cost = 1
+                   sm = costmatrix, # sub matrix = cost matrix
+                   with.missing = FALSE)
+
+dist_om_tol2k <- seqdist(event_seq_tol2k, 
+                   method = "OM", 
+                   indel = 1.0, # insertion/deletion cost = 1
+                   sm = costmatrix, # sub matrix = cost matrix
+                   with.missing = FALSE)
+
+####################################################
+##### STOPPED HERE WITH MULTIPLE METRICS EDITS #####
+####################################################
 
 ```
 
@@ -307,13 +504,12 @@ dist_om[1:5, 1:5]
 event_clusters <- agnes(dist_om, diss = TRUE, method = "ward")
 plot(event_clusters, which.plot = 2)
 
-# oof. let's proceed anyways....
 
+# cut into 2 clusters
 event_clust_cut <- cutree(event_clusters, k = 2) |> 
-  factor(labels = paste("Group", 1:2))
+  factor(labels = paste("Cluster", 1:2))
 
-# plot
-
+# plot sequences
 seqplot(event_seq, 
         group = event_clust_cut, type = "I")
 
@@ -340,7 +536,7 @@ cluster_boot <- clusterboot(dist_om,
 # get Jaccard coefficient for each cluster
 # hoping for > 0.85 = 'highly stable' or at least > 0.6 = 'likely to reflect a pattern'
 cluster_boot$bootmean
-# cluster 1 & 2 stable, cluster 3 not so much
+cluster_boot$bootbrd
 
 # does vessel behavior differ by cluster membership?
 # cluster ID = predictor
@@ -379,10 +575,10 @@ ggsave("figs/dendrogram_k2.png", height=8, width=10, units = "in", dpi = 300)
 
 Some observations from initial dendrogram:
 
-  - fishing from lines 1 and 2a clustered with transit from other lines but other fishing lines were separated
+  - fishing from lines 1 and 2a clustered with off-effort maneuvering from those same lines but fishing lines 3, 4, and 2b were separated out (distance effect?)
 
 
-Might as well test it anyway
+Fisher's Exact Test to see if cluster membership associated with fishing
 ```{r fisher}
 # Fisher's Exact test to see if cluster assignment is related to fishing activity
 
