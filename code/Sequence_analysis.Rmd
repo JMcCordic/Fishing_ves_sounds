@@ -270,7 +270,7 @@ selns_seq_tol2k <- hilo_cat |>
 
 
 # create key for sequence IDs to fishing vs. transit
-fish_states <- selns_seq |>
+fish_states <- selns_seq_BB |>
   select(seq_ID) |>
   mutate(fish_state = case_when(grepl("fishing", seq_ID)==TRUE ~ "fishing",
                    TRUE ~ "transit"))
@@ -285,7 +285,7 @@ How many events of each type across the dataset?
 
 ```{r describe dataset}
 
-length(unique(selns_seq$seq_ID))
+length(unique(selns_seq_BB$seq_ID))
 
 length(unique(fish_states$seq_ID))
 
@@ -451,7 +451,7 @@ substitution cost = constant
 ```{r cost and dist}
 
 # same for all metrics
-costmatrix <- seqsubm(event_seq, 
+costmatrix <- seqsubm(event_seq_BB, 
                       method="CONSTANT",
                       cval = 2, 
                       with.missing=FALSE,
@@ -490,9 +490,7 @@ dist_om_tol2k <- seqdist(event_seq_tol2k,
                    sm = costmatrix, # sub matrix = cost matrix
                    with.missing = FALSE)
 
-####################################################
-##### STOPPED HERE WITH MULTIPLE METRICS EDITS #####
-####################################################
+
 
 ```
 
@@ -501,18 +499,41 @@ dist_om_tol2k <- seqdist(event_seq_tol2k,
 
 ```{r cluster}
 
-event_clusters <- agnes(dist_om, diss = TRUE, method = "ward")
-plot(event_clusters, which.plot = 2)
-
-
+####
+# BB SPL
+event_clusters_BB <- agnes(dist_om_BB, diss = TRUE, method = "ward")
 # cut into 2 clusters
-event_clust_cut <- cutree(event_clusters, k = 2) |> 
+event_clust_BB_cut <- cutree(event_clusters_BB, k = 2) |> 
+  factor(labels = paste("Cluster", 1:2))
+
+####
+# TOL63
+event_clusters_tol63 <- agnes(dist_om_tol63, diss = TRUE, method = "ward")
+# cut into 2 clusters
+event_clust_tol63_cut <- cutree(event_clusters_tol63, k = 2) |> 
+  factor(labels = paste("Cluster", 1:2))
+
+
+####
+# TOL125
+event_clusters_tol125 <- agnes(dist_om_tol125, diss = TRUE, method = "ward")
+# cut into 2 clusters
+event_clust_tol125_cut <- cutree(event_clusters_tol125, k = 2) |> 
+  factor(labels = paste("Cluster", 1:2))
+
+
+####
+# TOL2000
+event_clusters_tol2k <- agnes(dist_om_tol2k, diss = TRUE, method = "ward")
+# cut into 2 clusters
+event_clust_tol2k_cut <- cutree(event_clusters_tol2k, k = 2) |> 
   factor(labels = paste("Cluster", 1:2))
 
 # plot sequences
-seqplot(event_seq, 
-        group = event_clust_cut, type = "I")
-
+seqplot(event_seq_BB, group = event_clust_BB_cut, type = "I", main = "BB SPL")
+seqplot(event_seq_tol63, group = event_clust_tol63_cut, type = "I", main = "TOL63")
+seqplot(event_seq_tol125, group = event_clust_tol125_cut, type = "I", main = "TOL125")
+seqplot(event_seq_tol2k, group = event_clust_tol2k_cut, type = "I", main = "TOL2000")
 
 
 ```
@@ -527,7 +548,7 @@ Run logistic regression to test whether vessel behavior  1/0 (fishing/transit) d
 
 # Test cluster stability with bootstrapping
 
-cluster_boot <- clusterboot(dist_om, 
+cluster_boot_BB <- clusterboot(dist_om_BB, 
             clustermethod = hclustCBI, 
             method = "ward.D2",
             k = 2,
@@ -535,25 +556,71 @@ cluster_boot <- clusterboot(dist_om,
 
 # get Jaccard coefficient for each cluster
 # hoping for > 0.85 = 'highly stable' or at least > 0.6 = 'likely to reflect a pattern'
-cluster_boot$bootmean
-cluster_boot$bootbrd
+cluster_boot_BB$bootmean
+cluster_boot_BB$bootbrd
 
+
+cluster_boot_tol63 <- clusterboot(dist_om_tol63, 
+            clustermethod = hclustCBI, 
+            method = "ward.D2",
+            k = 2,
+            seed = 13958)
+
+# get Jaccard coefficient for each cluster
+# hoping for > 0.85 = 'highly stable' or at least > 0.6 = 'likely to reflect a pattern'
+cluster_boot_tol63$bootmean
+cluster_boot_tol63$bootbrd
+
+
+
+
+cluster_boot_tol125 <- clusterboot(dist_om_tol125, 
+            clustermethod = hclustCBI, 
+            method = "ward.D2",
+            k = 2,
+            seed = 13958)
+
+# get Jaccard coefficient for each cluster
+# hoping for > 0.85 = 'highly stable' or at least > 0.6 = 'likely to reflect a pattern'
+cluster_boot_tol125$bootmean
+cluster_boot_tol125$bootbrd
+
+
+
+cluster_boot_tol2k <- clusterboot(dist_om_tol2k, 
+            clustermethod = hclustCBI, 
+            method = "ward.D2",
+            k = 2,
+            seed = 13958)
+
+# get Jaccard coefficient for each cluster
+# hoping for > 0.85 = 'highly stable' or at least > 0.6 = 'likely to reflect a pattern'
+cluster_boot_tol2k$bootmean
+cluster_boot_tol2k$bootbrd
+
+```
+
+# Dendrograms and stats
+
+
+## Broadband SPL
+```{r BB dendrogram}
 # does vessel behavior differ by cluster membership?
 # cluster ID = predictor
 # vessel behav = response, coded as 1/0 (fishing/transit)
 
 # add cluster labels to seq ID to associate w/fishing vs. transit
-seq_clust_lab <- selns_seq_wide |>
+seq_clust_lab_BB <- selns_seq_wide_BB |>
   select(seq_ID) |>
-  add_column(clust_ID = event_clust_cut)|>
+  add_column(clust_ID = event_clust_BB_cut)|>
   mutate(fish_state_binom = case_when(grepl("fishing", seq_ID)==TRUE ~ 1,
                    TRUE ~ 0),
          leaf_label = paste(seq_ID, fish_state_binom))
 
-event_clusters$order.lab <- seq_clust_lab$leaf_label[event_clusters$order]
-clust_colors = viridis::mako(n = 2, end = 0.75)
+event_clusters_BB$order.lab <- seq_clust_lab_BB$leaf_label[event_clusters_BB$order]
+clust_colors = viridis::mako(n = 2, begin = 0.25, end = 0.75)
 
-fviz_dend(event_clusters, 
+fviz_dend(event_clusters_BB, 
           k = 2,
           color_labels_by_k = TRUE,
           k_colors = clust_colors,
@@ -569,22 +636,187 @@ fviz_dend(event_clusters,
   theme(axis.text = element_text(size = 10),
         axis.title.x = element_text(size = 12),
         title = element_blank())
-ggsave("figs/dendrogram_k2.png", height=8, width=10, units = "in", dpi = 300)
+ggsave("figs/dendrogram_k2_BB.png", height=8, width=10, units = "in", dpi = 300)
 
 ```
 
-Some observations from initial dendrogram:
+Some observations from BB dendrogram:
+
+  - all fishing lines got split out
+  - Best one???!!!
+
+
+Fisher's Exact Test to see if cluster membership associated with fishing
+```{r fisher BB}
+# Fisher's Exact test to see if cluster assignment is related to fishing activity
+
+fisher_tab_BB <- table(seq_clust_lab_BB |> ungroup() |> select(clust_ID, fish_state_binom))
+fisher.test(fisher_tab_BB)
+
+```
+
+
+
+## TOL63
+```{r TOL63 dendrogram}
+# does vessel behavior differ by cluster membership?
+# cluster ID = predictor
+# vessel behav = response, coded as 1/0 (fishing/transit)
+
+# add cluster labels to seq ID to associate w/fishing vs. transit
+seq_clust_lab_tol63 <- selns_seq_wide_tol63 |>
+  select(seq_ID) |>
+  add_column(clust_ID = event_clust_tol63_cut)|>
+  mutate(fish_state_binom = case_when(grepl("fishing", seq_ID)==TRUE ~ 1,
+                   TRUE ~ 0),
+         leaf_label = paste(seq_ID, fish_state_binom))
+
+event_clusters_tol63$order.lab <- seq_clust_lab_tol63$leaf_label[event_clusters_tol63$order]
+clust_colors = viridis::mako(n = 2, begin = 0.25, end = 0.75)
+
+fviz_dend(event_clusters_tol63, 
+          k = 2,
+          color_labels_by_k = TRUE,
+          k_colors = clust_colors,
+          labels_font = "bold",
+        
+          rect = TRUE,
+          rect_border = clust_colors,
+          rect_fill = TRUE,
+          
+          lwd=1,
+          horiz = TRUE,
+          ggtheme = theme_bw()) +
+  theme(axis.text = element_text(size = 10),
+        axis.title.x = element_text(size = 12),
+        title = element_blank())
+ggsave("figs/dendrogram_k2_tol63.png", height=8, width=10, units = "in", dpi = 300)
+
+```
+
+Some observations from TOL63 dendrogram:
+
+  - fishing still outgroup in main cluster, but only one sequence actually got separated out
+
+
+Fisher's Exact Test to see if cluster membership associated with fishing
+```{r fisher TOL63}
+# Fisher's Exact test to see if cluster assignment is related to fishing activity
+
+fisher_tab_tol63 <- table(seq_clust_lab_tol63 |> ungroup() |> select(clust_ID, fish_state_binom))
+fisher.test(fisher_tab_tol63)
+
+```
+
+
+
+
+## TOL125
+```{r TOL125 dendrogram}
+# does vessel behavior differ by cluster membership?
+# cluster ID = predictor
+# vessel behav = response, coded as 1/0 (fishing/transit)
+
+# add cluster labels to seq ID to associate w/fishing vs. transit
+seq_clust_lab_tol125 <- selns_seq_wide_tol125 |>
+  select(seq_ID) |>
+  add_column(clust_ID = event_clust_tol125_cut)|>
+  mutate(fish_state_binom = case_when(grepl("fishing", seq_ID)==TRUE ~ 1,
+                   TRUE ~ 0),
+         leaf_label = paste(seq_ID, fish_state_binom))
+
+event_clusters_tol125$order.lab <- seq_clust_lab_tol125$leaf_label[event_clusters_tol125$order]
+clust_colors = viridis::mako(n = 2, begin = 0.25, end = 0.75)
+
+fviz_dend(event_clusters_tol125, 
+          k = 2,
+          color_labels_by_k = TRUE,
+          k_colors = clust_colors,
+          labels_font = "bold",
+        
+          rect = TRUE,
+          rect_border = clust_colors,
+          rect_fill = TRUE,
+          
+          lwd=1,
+          horiz = TRUE,
+          ggtheme = theme_bw()) +
+  theme(axis.text = element_text(size = 10),
+        axis.title.x = element_text(size = 12),
+        title = element_blank())
+ggsave("figs/dendrogram_k2_tol125.png", height=8, width=10, units = "in", dpi = 300)
+
+```
+
+Some observations from TOL125 dendrogram:
+
+  - captured line 3&4 as separate cluster; if k=3 would have 2 fishing clusters & one non-fishing cluster so still somewhat useful
+
+
+Fisher's Exact Test to see if cluster membership associated with fishing
+```{r fisher TOL125}
+# Fisher's Exact test to see if cluster assignment is related to fishing activity
+
+fisher_tab_tol125 <- table(seq_clust_lab_tol125 |> ungroup() |> select(clust_ID, fish_state_binom))
+fisher.test(fisher_tab_tol125)
+
+```
+
+
+
+
+
+## TOL2000
+```{r TOL2000 dendrogram}
+# does vessel behavior differ by cluster membership?
+# cluster ID = predictor
+# vessel behav = response, coded as 1/0 (fishing/transit)
+
+# add cluster labels to seq ID to associate w/fishing vs. transit
+seq_clust_lab_tol2k <- selns_seq_wide_tol2k |>
+  select(seq_ID) |>
+  add_column(clust_ID = event_clust_tol2k_cut)|>
+  mutate(fish_state_binom = case_when(grepl("fishing", seq_ID)==TRUE ~ 1,
+                   TRUE ~ 0),
+         leaf_label = paste(seq_ID, fish_state_binom))
+
+event_clusters_tol2k$order.lab <- seq_clust_lab_tol2k$leaf_label[event_clusters_tol2k$order]
+clust_colors = viridis::mako(n = 2, begin = 0.25, end = 0.75)
+
+fviz_dend(event_clusters_tol2k, 
+          k = 2,
+          color_labels_by_k = TRUE,
+          k_colors = clust_colors,
+          labels_font = "bold",
+        
+          rect = TRUE,
+          rect_border = clust_colors,
+          rect_fill = TRUE,
+          
+          lwd=1,
+          horiz = TRUE,
+          ggtheme = theme_bw()) +
+  theme(axis.text = element_text(size = 10),
+        axis.title.x = element_text(size = 12),
+        title = element_blank())
+ggsave("figs/dendrogram_k2_tol2k.png", height=8, width=10, units = "in", dpi = 300)
+
+```
+
+Some observations from TOL2000 dendrogram:
 
   - fishing from lines 1 and 2a clustered with off-effort maneuvering from those same lines but fishing lines 3, 4, and 2b were separated out (distance effect?)
 
 
 Fisher's Exact Test to see if cluster membership associated with fishing
-```{r fisher}
+```{r fisher tol2k}
 # Fisher's Exact test to see if cluster assignment is related to fishing activity
 
-fisher_tab <- table(seq_clust_lab |> ungroup() |> select(clust_ID, fish_state_binom))
-fisher.test(fisher_tab)
+fisher_tab_tol2k <- table(seq_clust_lab_tol2k |> ungroup() |> select(clust_ID, fish_state_binom))
+fisher.test(fisher_tab_tol2k)
 
 ```
 
-That's promising!
+
+
+
