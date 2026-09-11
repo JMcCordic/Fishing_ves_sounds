@@ -20,13 +20,14 @@ knitr::opts_chunk$set(echo = TRUE)
 # Load libraries
 
 library(tidyverse)
-library(cluster)
-library(dendextend)
-library(factoextra)
-library(fpc)
+library(cluster) # clustering
+library(dendextend) 
+library(factoextra) # pretty dendrograms
+library(fpc) # clustering
 library(psych)
-library(TraMineR)
+library(TraMineR) # sequence analysis
 library(TraMineRextras)
+library(ggpubr) # arrange multipanel plots
 
 
 ```
@@ -624,20 +625,24 @@ seq_clust_lab_BB <- selns_seq_wide_BB |>
   mutate(fish_state_binom = case_when(grepl("fishing", seq_ID)==TRUE ~ 1,
                                       TRUE ~ 0),
          leaf_label = case_when(
-           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) > 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,2),"-",str_sub(seq_ID, 4,5)),
-           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) < 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,1),"-",str_sub(seq_ID, 3,3)),
-           grepl("fishing", seq_ID)==TRUE ~ paste0("Fishing, ","L", str_sub(seq_ID, 1,1)),
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) == 21 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,2),"-",str_sub(seq_ID, 4,5)),
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) == 19 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,1),"-",str_sub(seq_ID, 3,3)),
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) == 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,2),"-",str_sub(seq_ID, 4,4)),
+           grepl("fishing", seq_ID)==TRUE & nchar(seq_ID) == 9 ~ paste0("Fishing, ","L", str_sub(seq_ID, 1,1)),
+           grepl("fishing", seq_ID)==TRUE & nchar(seq_ID) == 10 ~ paste0("Fishing, ","L", str_sub(seq_ID, 1,2)),
            TRUE ~ paste0("Transit, ","L", str_sub(seq_ID, 1,1)))
   )
 
 event_clusters_BB$order.lab <- seq_clust_lab_BB$leaf_label[event_clusters_BB$order]
 clust_colors = viridis::mako(n = 2, begin = 0.25, end = 0.75)
 
-fviz_dend(event_clusters_BB, 
+dend_BB <- fviz_dend(event_clusters_BB, 
           k = 2,
           color_labels_by_k = TRUE,
           k_colors = clust_colors,
           labels_font = "bold",
+          labels_track_height = 3.25,
+
         
           rect = TRUE,
           rect_border = clust_colors,
@@ -649,7 +654,10 @@ fviz_dend(event_clusters_BB,
   theme(axis.text = element_text(size = 10),
         axis.title.x = element_text(size = 12),
         title = element_blank())
-ggsave("figs/dendrogram_k2_BB.png", height=8, width=10, units = "in", dpi = 300)
+
+dend_BB
+
+ggsave("figs/dendrogram_k2_BB.png", plot = dend_BB, height=8, width=10, units = "in", dpi = 300)
 
 ```
 
@@ -681,22 +689,26 @@ seq_clust_lab_tol63 <- selns_seq_wide_tol63 |>
   select(seq_ID) |>
   add_column(clust_ID = event_clust_tol63_cut)|>
   mutate(fish_state_binom = case_when(grepl("fishing", seq_ID)==TRUE ~ 1,
-                   TRUE ~ 0),
+                                      TRUE ~ 0),
          leaf_label = case_when(
-           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) > 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,2),"-",str_sub(seq_ID, 4,5)),
-           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) < 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,1),"-",str_sub(seq_ID, 3,3)),
-           grepl("fishing", seq_ID)==TRUE ~ paste0("Fishing, ","L", str_sub(seq_ID, 1,1)),
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) == 21 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,2),"-",str_sub(seq_ID, 4,5)),
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) == 19 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,1),"-",str_sub(seq_ID, 3,3)),
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) == 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,2),"-",str_sub(seq_ID, 4,4)),
+           grepl("fishing", seq_ID)==TRUE & nchar(seq_ID) == 9 ~ paste0("Fishing, ","L", str_sub(seq_ID, 1,1)),
+           grepl("fishing", seq_ID)==TRUE & nchar(seq_ID) == 10 ~ paste0("Fishing, ","L", str_sub(seq_ID, 1,2)),
            TRUE ~ paste0("Transit, ","L", str_sub(seq_ID, 1,1)))
   )
 
 event_clusters_tol63$order.lab <- seq_clust_lab_tol63$leaf_label[event_clusters_tol63$order]
 clust_colors = viridis::mako(n = 3, begin = 0.25, end = 0.75)
 
-fviz_dend(event_clusters_tol63, 
+dend_tol63 <- fviz_dend(event_clusters_tol63, 
           k = 3,
           color_labels_by_k = TRUE,
           k_colors = clust_colors,
           labels_font = "bold",
+          labels_track_height = 3.25,
+
         
           rect = TRUE,
           rect_border = clust_colors,
@@ -708,7 +720,10 @@ fviz_dend(event_clusters_tol63,
   theme(axis.text = element_text(size = 10),
         axis.title.x = element_text(size = 12),
         title = element_blank())
-ggsave("figs/dendrogram_k3_tol63.png", height=8, width=10, units = "in", dpi = 300)
+
+dend_tol63
+
+ggsave("figs/dendrogram_k3_tol63.png", plot = dend_tol63, height=8, width=10, units = "in", dpi = 300)
 
 ```
 
@@ -740,22 +755,27 @@ seq_clust_lab_tol125 <- selns_seq_wide_tol125 |>
   select(seq_ID) |>
   add_column(clust_ID = event_clust_tol125_cut)|>
   mutate(fish_state_binom = case_when(grepl("fishing", seq_ID)==TRUE ~ 1,
-                   TRUE ~ 0),
+                                      TRUE ~ 0),
          leaf_label = case_when(
-           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) > 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,2),"-",str_sub(seq_ID, 4,5)),
-           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) < 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,1),"-",str_sub(seq_ID, 3,3)),
-           grepl("fishing", seq_ID)==TRUE ~ paste0("Fishing, ","L", str_sub(seq_ID, 1,1)),
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) == 21 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,2),"-",str_sub(seq_ID, 4,5)),
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) == 19 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,1),"-",str_sub(seq_ID, 3,3)),
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) == 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,2),"-",str_sub(seq_ID, 4,4)),
+           grepl("fishing", seq_ID)==TRUE & nchar(seq_ID) == 9 ~ paste0("Fishing, ","L", str_sub(seq_ID, 1,1)),
+           grepl("fishing", seq_ID)==TRUE & nchar(seq_ID) == 10 ~ paste0("Fishing, ","L", str_sub(seq_ID, 1,2)),
            TRUE ~ paste0("Transit, ","L", str_sub(seq_ID, 1,1)))
   )
+
 
 event_clusters_tol125$order.lab <- seq_clust_lab_tol125$leaf_label[event_clusters_tol125$order]
 clust_colors = viridis::mako(n = 3, begin = 0.25, end = 0.75)
 
-fviz_dend(event_clusters_tol125, 
+dend_tol125 <- fviz_dend(event_clusters_tol125, 
           k = 3,
           color_labels_by_k = TRUE,
           k_colors = clust_colors,
           labels_font = "bold",
+          labels_track_height = 3.25,
+
         
           rect = TRUE,
           rect_border = clust_colors,
@@ -767,7 +787,9 @@ fviz_dend(event_clusters_tol125,
   theme(axis.text = element_text(size = 10),
         axis.title.x = element_text(size = 12),
         title = element_blank())
-ggsave("figs/dendrogram_k3_tol125.png", height=8, width=10, units = "in", dpi = 300)
+dend_tol125
+
+ggsave("figs/dendrogram_k3_tol125.png", plot = dend_tol125, height=8, width=10, units = "in", dpi = 300)
 
 ```
 
@@ -800,34 +822,41 @@ seq_clust_lab_tol2k <- selns_seq_wide_tol2k |>
   select(seq_ID) |>
   add_column(clust_ID = event_clust_tol2k_cut)|>
   mutate(fish_state_binom = case_when(grepl("fishing", seq_ID)==TRUE ~ 1,
-                   TRUE ~ 0),
+                                      TRUE ~ 0),
          leaf_label = case_when(
-           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) > 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,2),"-",str_sub(seq_ID, 4,5)),
-           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) < 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,1),"-",str_sub(seq_ID, 3,3)),
-           grepl("fishing", seq_ID)==TRUE ~ paste0("Fishing, ","L", str_sub(seq_ID, 1,1)),
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) == 21 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,2),"-",str_sub(seq_ID, 4,5)),
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) == 19 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,1),"-",str_sub(seq_ID, 3,3)),
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) == 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,2),"-",str_sub(seq_ID, 4,4)),
+           grepl("fishing", seq_ID)==TRUE & nchar(seq_ID) == 9 ~ paste0("Fishing, ","L", str_sub(seq_ID, 1,1)),
+           grepl("fishing", seq_ID)==TRUE & nchar(seq_ID) == 10 ~ paste0("Fishing, ","L", str_sub(seq_ID, 1,2)),
            TRUE ~ paste0("Transit, ","L", str_sub(seq_ID, 1,1)))
   )
+
 
 event_clusters_tol2k$order.lab <- seq_clust_lab_tol2k$leaf_label[event_clusters_tol2k$order]
 clust_colors = viridis::mako(n = 2, begin = 0.25, end = 0.75)
 
-fviz_dend(event_clusters_tol2k, 
-          k = 2,
-          color_labels_by_k = TRUE,
-          k_colors = clust_colors,
-          labels_font = "bold",
-        
-          rect = TRUE,
-          rect_border = clust_colors,
-          rect_fill = TRUE,
-          
-          lwd=1,
-          horiz = TRUE,
-          ggtheme = theme_bw()) +
+dend_tol2k <- fviz_dend(event_clusters_tol2k, 
+                        k = 2,
+                        color_labels_by_k = TRUE,
+                        k_colors = clust_colors,
+                        labels_track_height = 3.25,
+                        labels_font = "bold",
+                        
+                        rect = TRUE,
+                        rect_border = clust_colors,
+                        rect_fill = TRUE,
+                        
+                        lwd=1,
+                        horiz = TRUE,
+                        ggtheme = theme_bw()) +
   theme(axis.text = element_text(size = 10),
         axis.title.x = element_text(size = 12),
         title = element_blank())
-ggsave("figs/dendrogram_k2_tol2k.png", height=8, width=10, units = "in", dpi = 300)
+
+dend_tol2k
+
+ggsave("figs/dendrogram_k2_tol2k.png", plot = dend_tol2k, height=8, width=10, units = "in", dpi = 300)
 
 ```
 
@@ -846,5 +875,22 @@ fisher.test(fisher_tab_tol2k)
 ```
 
 
+### 4-panel plots
 
+```{r arrange}
+
+ggarrange(dend_BB, dend_tol63, dend_tol125, dend_tol2k, 
+          ncol = 2, nrow = 2, 
+          labels = c("Broadband", "TOL63", "TOL125", "TOL2000"), hjust = -1.25)
+ggsave("figs/Dendrograms_4panel.png", height = 10, width = 16, units= "in", dpi = 300)
+
+
+### Make sequences into 4-panel plot
+# maybe coerce into nicer df for geom_tile() instead of default sequence plot
+#   -- if that works, could probably just do normal faceting!
+
+
+
+
+```
 
