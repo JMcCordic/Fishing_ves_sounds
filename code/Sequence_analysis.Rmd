@@ -502,6 +502,9 @@ dist_om_tol2k <- seqdist(event_seq_tol2k,
 ####
 # BB SPL
 event_clusters_BB <- agnes(dist_om_BB, diss = TRUE, method = "ward")
+plot(event_clusters_BB, which.plots = 2)
+ggsave("figs/AGNES_tree_BB.png", height=8, width=10, units = "in", dpi = 300)
+
 # cut into 2 clusters
 event_clust_BB_cut <- cutree(event_clusters_BB, k = 2) |> 
   factor(labels = paste("Cluster", 1:2))
@@ -509,22 +512,31 @@ event_clust_BB_cut <- cutree(event_clusters_BB, k = 2) |>
 ####
 # TOL63
 event_clusters_tol63 <- agnes(dist_om_tol63, diss = TRUE, method = "ward")
-# cut into 2 clusters
-event_clust_tol63_cut <- cutree(event_clusters_tol63, k = 2) |> 
-  factor(labels = paste("Cluster", 1:2))
+plot(event_clusters_tol63, which.plots = 2)
+ggsave("figs/AGNES_tree_tol63.png", height=8, width=10, units = "in", dpi = 300)
+
+# cut into 3 clusters
+event_clust_tol63_cut <- cutree(event_clusters_tol63, k = 3) |> 
+  factor(labels = paste("Cluster", 1:3))
 
 
 ####
 # TOL125
 event_clusters_tol125 <- agnes(dist_om_tol125, diss = TRUE, method = "ward")
-# cut into 2 clusters
-event_clust_tol125_cut <- cutree(event_clusters_tol125, k = 2) |> 
-  factor(labels = paste("Cluster", 1:2))
+plot(event_clusters_tol125, which.plots = 2)
+ggsave("figs/AGNES_tree_tol125.png", height=8, width=10, units = "in", dpi = 300)
+
+# cut into 3 clusters
+event_clust_tol125_cut <- cutree(event_clusters_tol125, k = 3) |> 
+  factor(labels = paste("Cluster", 1:3))
 
 
 ####
 # TOL2000
 event_clusters_tol2k <- agnes(dist_om_tol2k, diss = TRUE, method = "ward")
+plot(event_clusters_tol2k, which.plots = 2)
+ggsave("figs/AGNES_tree_tol2k.png", height=8, width=10, units = "in", dpi = 300)
+
 # cut into 2 clusters
 event_clust_tol2k_cut <- cutree(event_clusters_tol2k, k = 2) |> 
   factor(labels = paste("Cluster", 1:2))
@@ -563,7 +575,7 @@ cluster_boot_BB$bootbrd
 cluster_boot_tol63 <- clusterboot(dist_om_tol63, 
             clustermethod = hclustCBI, 
             method = "ward.D2",
-            k = 2,
+            k = 3,
             seed = 13958)
 
 # get Jaccard coefficient for each cluster
@@ -577,7 +589,7 @@ cluster_boot_tol63$bootbrd
 cluster_boot_tol125 <- clusterboot(dist_om_tol125, 
             clustermethod = hclustCBI, 
             method = "ward.D2",
-            k = 2,
+            k = 3,
             seed = 13958)
 
 # get Jaccard coefficient for each cluster
@@ -672,10 +684,10 @@ seq_clust_lab_tol63 <- selns_seq_wide_tol63 |>
          leaf_label = paste(seq_ID, fish_state_binom))
 
 event_clusters_tol63$order.lab <- seq_clust_lab_tol63$leaf_label[event_clusters_tol63$order]
-clust_colors = viridis::mako(n = 2, begin = 0.25, end = 0.75)
+clust_colors = viridis::mako(n = 3, begin = 0.25, end = 0.75)
 
 fviz_dend(event_clusters_tol63, 
-          k = 2,
+          k = 3,
           color_labels_by_k = TRUE,
           k_colors = clust_colors,
           labels_font = "bold",
@@ -690,7 +702,7 @@ fviz_dend(event_clusters_tol63,
   theme(axis.text = element_text(size = 10),
         axis.title.x = element_text(size = 12),
         title = element_blank())
-ggsave("figs/dendrogram_k2_tol63.png", height=8, width=10, units = "in", dpi = 300)
+ggsave("figs/dendrogram_k3_tol63.png", height=8, width=10, units = "in", dpi = 300)
 
 ```
 
@@ -726,10 +738,10 @@ seq_clust_lab_tol125 <- selns_seq_wide_tol125 |>
          leaf_label = paste(seq_ID, fish_state_binom))
 
 event_clusters_tol125$order.lab <- seq_clust_lab_tol125$leaf_label[event_clusters_tol125$order]
-clust_colors = viridis::mako(n = 2, begin = 0.25, end = 0.75)
+clust_colors = viridis::mako(n = 3, begin = 0.25, end = 0.75)
 
 fviz_dend(event_clusters_tol125, 
-          k = 2,
+          k = 3,
           color_labels_by_k = TRUE,
           k_colors = clust_colors,
           labels_font = "bold",
@@ -744,7 +756,7 @@ fviz_dend(event_clusters_tol125,
   theme(axis.text = element_text(size = 10),
         axis.title.x = element_text(size = 12),
         title = element_blank())
-ggsave("figs/dendrogram_k2_tol125.png", height=8, width=10, units = "in", dpi = 300)
+ggsave("figs/dendrogram_k3_tol125.png", height=8, width=10, units = "in", dpi = 300)
 
 ```
 
