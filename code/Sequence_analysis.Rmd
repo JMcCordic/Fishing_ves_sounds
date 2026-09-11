@@ -503,7 +503,6 @@ dist_om_tol2k <- seqdist(event_seq_tol2k,
 # BB SPL
 event_clusters_BB <- agnes(dist_om_BB, diss = TRUE, method = "ward")
 plot(event_clusters_BB, which.plots = 2)
-ggsave("figs/AGNES_tree_BB.png", height=8, width=10, units = "in", dpi = 300)
 
 # cut into 2 clusters
 event_clust_BB_cut <- cutree(event_clusters_BB, k = 2) |> 
@@ -513,7 +512,6 @@ event_clust_BB_cut <- cutree(event_clusters_BB, k = 2) |>
 # TOL63
 event_clusters_tol63 <- agnes(dist_om_tol63, diss = TRUE, method = "ward")
 plot(event_clusters_tol63, which.plots = 2)
-ggsave("figs/AGNES_tree_tol63.png", height=8, width=10, units = "in", dpi = 300)
 
 # cut into 3 clusters
 event_clust_tol63_cut <- cutree(event_clusters_tol63, k = 3) |> 
@@ -524,7 +522,6 @@ event_clust_tol63_cut <- cutree(event_clusters_tol63, k = 3) |>
 # TOL125
 event_clusters_tol125 <- agnes(dist_om_tol125, diss = TRUE, method = "ward")
 plot(event_clusters_tol125, which.plots = 2)
-ggsave("figs/AGNES_tree_tol125.png", height=8, width=10, units = "in", dpi = 300)
 
 # cut into 3 clusters
 event_clust_tol125_cut <- cutree(event_clusters_tol125, k = 3) |> 
@@ -535,7 +532,6 @@ event_clust_tol125_cut <- cutree(event_clusters_tol125, k = 3) |>
 # TOL2000
 event_clusters_tol2k <- agnes(dist_om_tol2k, diss = TRUE, method = "ward")
 plot(event_clusters_tol2k, which.plots = 2)
-ggsave("figs/AGNES_tree_tol2k.png", height=8, width=10, units = "in", dpi = 300)
 
 # cut into 2 clusters
 event_clust_tol2k_cut <- cutree(event_clusters_tol2k, k = 2) |> 
@@ -626,8 +622,13 @@ seq_clust_lab_BB <- selns_seq_wide_BB |>
   select(seq_ID) |>
   add_column(clust_ID = event_clust_BB_cut)|>
   mutate(fish_state_binom = case_when(grepl("fishing", seq_ID)==TRUE ~ 1,
-                   TRUE ~ 0),
-         leaf_label = paste(seq_ID, fish_state_binom))
+                                      TRUE ~ 0),
+         leaf_label = case_when(
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) > 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,2),"-",str_sub(seq_ID, 4,5)),
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) < 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,1),"-",str_sub(seq_ID, 3,3)),
+           grepl("fishing", seq_ID)==TRUE ~ paste0("Fishing, ","L", str_sub(seq_ID, 1,1)),
+           TRUE ~ paste0("Transit, ","L", str_sub(seq_ID, 1,1)))
+  )
 
 event_clusters_BB$order.lab <- seq_clust_lab_BB$leaf_label[event_clusters_BB$order]
 clust_colors = viridis::mako(n = 2, begin = 0.25, end = 0.75)
@@ -681,7 +682,12 @@ seq_clust_lab_tol63 <- selns_seq_wide_tol63 |>
   add_column(clust_ID = event_clust_tol63_cut)|>
   mutate(fish_state_binom = case_when(grepl("fishing", seq_ID)==TRUE ~ 1,
                    TRUE ~ 0),
-         leaf_label = paste(seq_ID, fish_state_binom))
+         leaf_label = case_when(
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) > 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,2),"-",str_sub(seq_ID, 4,5)),
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) < 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,1),"-",str_sub(seq_ID, 3,3)),
+           grepl("fishing", seq_ID)==TRUE ~ paste0("Fishing, ","L", str_sub(seq_ID, 1,1)),
+           TRUE ~ paste0("Transit, ","L", str_sub(seq_ID, 1,1)))
+  )
 
 event_clusters_tol63$order.lab <- seq_clust_lab_tol63$leaf_label[event_clusters_tol63$order]
 clust_colors = viridis::mako(n = 3, begin = 0.25, end = 0.75)
@@ -735,7 +741,12 @@ seq_clust_lab_tol125 <- selns_seq_wide_tol125 |>
   add_column(clust_ID = event_clust_tol125_cut)|>
   mutate(fish_state_binom = case_when(grepl("fishing", seq_ID)==TRUE ~ 1,
                    TRUE ~ 0),
-         leaf_label = paste(seq_ID, fish_state_binom))
+         leaf_label = case_when(
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) > 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,2),"-",str_sub(seq_ID, 4,5)),
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) < 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,1),"-",str_sub(seq_ID, 3,3)),
+           grepl("fishing", seq_ID)==TRUE ~ paste0("Fishing, ","L", str_sub(seq_ID, 1,1)),
+           TRUE ~ paste0("Transit, ","L", str_sub(seq_ID, 1,1)))
+  )
 
 event_clusters_tol125$order.lab <- seq_clust_lab_tol125$leaf_label[event_clusters_tol125$order]
 clust_colors = viridis::mako(n = 3, begin = 0.25, end = 0.75)
@@ -790,7 +801,12 @@ seq_clust_lab_tol2k <- selns_seq_wide_tol2k |>
   add_column(clust_ID = event_clust_tol2k_cut)|>
   mutate(fish_state_binom = case_when(grepl("fishing", seq_ID)==TRUE ~ 1,
                    TRUE ~ 0),
-         leaf_label = paste(seq_ID, fish_state_binom))
+         leaf_label = case_when(
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) > 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,2),"-",str_sub(seq_ID, 4,5)),
+           grepl("Off_eff", seq_ID)==TRUE & nchar(seq_ID) < 20 ~ paste0("Maneuver, ","L",str_sub(seq_ID, 1,1),"-",str_sub(seq_ID, 3,3)),
+           grepl("fishing", seq_ID)==TRUE ~ paste0("Fishing, ","L", str_sub(seq_ID, 1,1)),
+           TRUE ~ paste0("Transit, ","L", str_sub(seq_ID, 1,1)))
+  )
 
 event_clusters_tol2k$order.lab <- seq_clust_lab_tol2k$leaf_label[event_clusters_tol2k$order]
 clust_colors = viridis::mako(n = 2, begin = 0.25, end = 0.75)
