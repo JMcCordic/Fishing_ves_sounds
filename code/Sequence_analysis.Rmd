@@ -278,19 +278,6 @@ fish_states <- selns_seq_BB |>
 
 ```
 
-### Descriptives
-
-How many sequences?
-How many events per sequence?
-How many events of each type across the dataset?
-
-```{r describe dataset}
-
-length(unique(selns_seq_BB$seq_ID))
-
-length(unique(fish_states$seq_ID))
-
-```
 
  
 
@@ -369,12 +356,74 @@ selns_seq_wide_tol2k <- selns_seq_tol2k |>
          seq_ID != "post_survey_Off_eff_transit") |>
   pivot_wider(names_from = time_idx,
               values_from = event_hilo_tol2k)
+```
 
 
 
+### Descriptives
+
+How many sequences?
+How many events per sequence?
+How many events of each type across the dataset?
+
+```{r describe dataset}
+
+length(unique(selns_seq_BB$seq_ID))
+
+length(unique(fish_states$seq_ID))
+
+# summarize recording effort
+
+eff_summ_line <- intervals_cat |>
+  group_by(Line_num, activity) |>
+  summarize(n_sec = n(),
+            n_min = n_sec/60)
+
+eff_summ_behav <- eff_summ_line |>
+  ungroup() |>
+  filter(Line_num != "pre_survey", 
+         Line_num != "post_survey") |>
+  group_by(activity) |>
+  summarize(n_min_tot = sum(n_min))
+
+# summarize duration and SPL per selection
+
+# start with hilo_cat, group by seq ID, filter out pre/post survey, summarize to get median dur90, median BB, tol63, tol125, tol2k, min(range(___)), max(range(___)), range = diff(range())
+metric_summ <- hilo_cat |>
+  ungroup()|>
+  filter(seq_ID != "pre_survey_Off_eff_transit", 
+         seq_ID != "post_survey_Off_eff_transit") |>
+  summarise(median_BB = median(med_sel_BB, na.rm = TRUE), 
+            min_BB = min(med_sel_BB, na.rm = TRUE), 
+            max_BB = max(med_sel_BB, na.rm = TRUE),
+            median_tol63 = median(med_sel_tol63, na.rm = TRUE),
+            min_tol63 = min(med_sel_tol63, na.rm = TRUE), 
+            max_tol63 = max(med_sel_tol63, na.rm = TRUE), 
+            median_tol125 = median(med_sel_tol125, na.rm = TRUE), 
+            min_tol125 = min(med_sel_tol125, na.rm = TRUE), 
+            max_tol125 = max(med_sel_tol125, na.rm = TRUE), 
+            median_tol2k = median(med_sel_tol2k, na.rm = TRUE), 
+            min_tol2k = min(med_sel_tol2k, na.rm = TRUE),
+            max_tol2k = max(med_sel_tol2k, na.rm = TRUE), 
+            median_dur90 = median(Dur_90_perc, na.rm = TRUE), 
+            min_dur90 = min(Dur_90_perc, na.rm = TRUE), 
+            max_dur90 = max(Dur_90_perc, na.rm = TRUE))
+
+
+dur_summ <- hilo_cat |>
+  ungroup()|>
+  filter(seq_ID != "pre_survey_Off_eff_transit", 
+         seq_ID != "post_survey_Off_eff_transit") |>
+  group_by(dur_long_short) |>
+  summarise(n_sel = n(),
+            min_s = min(Dur_90_perc),
+            max_s = max(Dur_90_perc))
 
 
 ```
+
+
+
 
 Create alphabet and assign labels
 
