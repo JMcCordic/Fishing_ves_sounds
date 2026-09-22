@@ -450,6 +450,7 @@ Create sequence object
 event_seq_BB <- seqdef(selns_seq_wide_BB, 
                     var = 2:15,
                     alphabet = event_alphabet,
+                    id = selns_seq_wide_BB$seq_ID,
                     labels = event_labels,
                     xtstep = 2,
                     cpal = event_colors)
@@ -458,6 +459,7 @@ event_seq_BB <- seqdef(selns_seq_wide_BB,
 event_seq_tol63 <- seqdef(selns_seq_wide_tol63, 
                     var = 2:15,
                     alphabet = event_alphabet,
+                    id = selns_seq_wide_tol63$seq_ID,
                     labels = event_labels,
                     xtstep = 2,
                     cpal = event_colors)
@@ -466,6 +468,7 @@ event_seq_tol63 <- seqdef(selns_seq_wide_tol63,
 event_seq_tol125 <- seqdef(selns_seq_wide_tol125, 
                     var = 2:15,
                     alphabet = event_alphabet,
+                    id = selns_seq_wide_tol125$seq_ID,
                     labels = event_labels,
                     xtstep = 2,
                     cpal = event_colors)
@@ -473,6 +476,7 @@ event_seq_tol125 <- seqdef(selns_seq_wide_tol125,
 event_seq_tol2k <- seqdef(selns_seq_wide_tol2k, 
                     var = 2:15,
                     alphabet = event_alphabet,
+                    id = selns_seq_wide_tol2k$seq_ID,
                     labels = event_labels,
                     xtstep = 2,
                     cpal = event_colors)
@@ -937,6 +941,54 @@ ggsave("figs/Dendrograms_4panel.png", height = 10, width = 16, units= "in", dpi 
 ### Make sequences into 4-panel plot
 # maybe coerce into nicer df for geom_tile() instead of default sequence plot
 #   -- if that works, could probably just do normal faceting!
+
+
+BB_plot_seq <- selns_seq_BB |>
+  left_join(seq_clust_lab_BB) |>
+  filter(!is.na(leaf_label)) |>
+  rename(event_hilo = event_hilo_BB)|>
+  mutate(metric = "Broadband")
+
+tol63_plot_seq <- selns_seq_tol63 |>
+  left_join(seq_clust_lab_tol63) |>
+  filter(!is.na(leaf_label)) |>
+  rename(event_hilo = event_hilo_tol63)|>
+  mutate(metric = "TOL63")
+
+tol125_plot_seq <- selns_seq_tol125 |>
+  left_join(seq_clust_lab_tol125) |>
+  filter(!is.na(leaf_label)) |>
+  rename(event_hilo = event_hilo_tol125) |>
+  mutate(metric = "TOL125")
+
+tol2k_plot_seq <- selns_seq_tol2k |>
+  left_join(seq_clust_lab_tol2k) |>
+  filter(!is.na(leaf_label)) |>
+  rename(event_hilo = event_hilo_tol2k)|>
+  mutate(metric = "TOL2000")
+
+all_metrics_plot_seq <- rbind(BB_plot_seq, tol63_plot_seq, tol125_plot_seq, tol2k_plot_seq) |>
+  mutate(metric = factor(metric, levels = c("Broadband", "TOL63", "TOL125", "TOL2000")),
+       event_label = case_when(event_hilo == "high_long" ~ "HL",
+                               event_hilo == "high_short" ~ "HS",
+                               event_hilo == "low_long" ~ "LL",
+                               event_hilo == "low_short" ~ "LS"))
+
+ggplot(data = all_metrics_plot_seq, 
+       aes(x = time_idx, y = leaf_label)) +
+  geom_tile(aes(fill = event_label),
+            color = "black")+
+  scale_fill_viridis_d(option = "B", begin = 0.2, end = 0.9)+
+  facet_grid(cols = vars(metric))+
+  labs(fill = "Event", x = "Time Index", y = "Sequence ID")+
+  theme_bw()+
+  theme(axis.text = element_text(face = "bold", size = 12),
+        axis.title = element_text(face = "bold", size = 14),
+        strip.text = element_text(face = "bold", size = 12),
+        legend.text = element_text(face = "bold", size = 12),
+        title = element_blank())
+
+ggsave("figs/sequence_plots.png", height = 3.5, width = 12, units= "in", dpi = 300)
 
 
 
