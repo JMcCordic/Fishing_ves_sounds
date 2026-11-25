@@ -127,7 +127,7 @@ intervals_cat|>
         axis.title = element_text(face = "bold", size = 14),
         title = element_blank())
 
-ggsave("figs/dur_histogram.png", height=8, width=10, units = "in", dpi = 300)
+ggsave("figs/dur_histogram.png", height=4, width=10, units = "in", dpi = 300)
 
 
 # start with intervals_cat
