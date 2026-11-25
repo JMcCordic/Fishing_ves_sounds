@@ -110,6 +110,26 @@ intervals_cat <- selns_data |>
 # get 50th percentile to use as "short" vs "long" cutoff
 dur_cut_val <- quantile(unique(intervals_cat$`Dur 90% (s)`))[3]
 
+# plot histogram of durations
+intervals_cat|>
+  distinct(`Dur 90% (s)`)|>
+  ggplot()+
+  geom_histogram(aes(x = `Dur 90% (s)`),
+                 bins = 40,
+                 color = "black",
+                 fill = "grey80")+
+  ylab("Count")+
+  geom_vline(xintercept = dur_cut_val, 
+             color = "blue", 
+             linetype = "dashed", size = 1) +
+  theme_bw()+
+  theme(axis.text = element_text(face = "bold", size = 12),
+        axis.title = element_text(face = "bold", size = 14),
+        title = element_blank())
+
+ggsave("figs/dur_histogram.png", height=8, width=10, units = "in", dpi = 300)
+
+
 # start with intervals_cat
 hilo_cat <- intervals_cat |>
   # group by seq_ID & selection to get median metrics per selection
@@ -980,7 +1000,7 @@ ggplot(data = all_metrics_plot_seq,
             color = "black")+
   scale_fill_viridis_d(option = "B", begin = 0.2, end = 0.9)+
   facet_grid(cols = vars(metric))+
-  labs(fill = "Event", x = "Time Index", y = "Sequence ID")+
+  labs(fill = "Event", x = "Sequence Event Index", y = "Sequence ID")+
   theme_bw()+
   theme(axis.text = element_text(face = "bold", size = 12),
         axis.title = element_text(face = "bold", size = 14),
